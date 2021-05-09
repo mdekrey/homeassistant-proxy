@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: homeassistant-proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homeassistant-ssh-service
+  namespace: homeassistant-proxy
+spec:
+  selector:
+    app: homeassistant-ssh-proxy
+  ports:
+    - port: 2222
+      targetPort: 22
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homeassistant-ssh
+  namespace: homeassistant-proxy
+  labels:
+    app: homeassistant-ssh-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: homeassistant-ssh-proxy
+  template:
+    metadata:
+      labels:
+        app: homeassistant-ssh-proxy
+    spec:
+      containers:
+        - image: dekreydotnet.azurecr.io/ssh-public-proxy
+          args:
+            - c3NoLXJzYSBBQUFBQjNOemFDMXljMkVBQUFBREFRQUJBQUFDQVFEY0dwazJ0WGN5bjhIazNWemF2TWFFbWt1OEpXR3JyM1IxOTRPVGVWc1U4T3YwZzNtRmNGcTY1QmpuV0d6dW1QQzhPbHZiQUR1UzVIZ2RJUmJhYm50djFSMUczVWxWZHdnYVo2QzBYL3dHMy95R05MTUVja2liWUdkRkduL0NaL1pSeDN0NFZJTFJiVE5FL0pWbVF4OC9vVjRHT3FWUGpjUVg5V2xZaitjRUtBT210WUtUMHRONVR0N1gyQ1laZ3BJcWQ5SXRPR1E2clZMNlprT05vbmw2QkdPSFE0djRHeFhaNnhwdGJudlo5a3FjYlVmc3VnWnhxWEYvL01kYkEwZTRPMk8xS0tOcEY2dm5Kalovd1hQeUZpOGtKR05YYmNEQSt3TUFNQVdBSFd3aFBKQUZhN2s0NnRFTkpsWE01YSsydzRXREx3Y3d4eitFZ01EQytJNlVGTmxVUi9Za2FVUGVkdGxoU3poT0lna3pHdlR1M1QrSW5nMlhmT2wxQkZlWlRaMkRXQlljbnF0MmZmenA4MUpZMnhVYjBHRnNxejcrUlF4OVFqeUdIOTN2eS9DcjRRSGE3aTZzN045blkzOURVOXNTK3VkUG4zajNMaUl3VVN4aGttL1F0TGVTWk9iYWVqYjEzT1FKR0FYclFSZ2FUWjZoTnM2dXZxaFBNZGM5R0JnNjFieGsyWUp5Q1NDdUoxbW5lQ0hQc2l3Y2REbzJNSm5oNzlDazlNRGtzMDlmNjByd1BXbjcrV0VXSkVYS1ZmbEs4Um9uT01DQmJRTzg1TXBMaVlGZDhqS2FMRWpST2VzS1lrNngrVWdmY1FkQ2dOL1NmS0p0TDI1TVVXUko2NmY2QzB1THZNODJTdHVuOFRRRS9va0U3RmpySThxMVJuS3g4dXVOVXc9PSBoYXNzaW8tc2V0dXAtdmlhLWF1dG9zc2g=
+          imagePullPolicy: Always
+          readinessProbe:
+            tcpSocket:
+              port: 22
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 22
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: ssh-proxy
+          ports:
+            - containerPort: 22
+              name: tcp
+              protocol: TCP
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+          resources: {}
+      dnsPolicy: ClusterFirstWithHostNet
+      imagePullSecrets:
+      - name: homeassistant-proxy-registry
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homeassistant-http-service
+  namespace: homeassistant-proxy
+spec:
+  selector:
+    app: homeassistant-ssh-proxy
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homeassistant-http-ingress
+  namespace: homeassistant-proxy
+  annotations:
+    cert-manager.io/issuer: letsencrypt
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    # Do I need both of these annotations? I feel like one is enough...
+    nginx.org/websocket-services: homeassistant-http-service
+    nginx.ingress.kubernetes.io/websocket-services: homeassistant-http-service
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: homeassistant.dekrey.net
+      http:
+        paths:
+        - backend:
+            service:
+              name: homeassistant-http-service
+              port:
+                number: 8000
+          path: /
+          pathType: ImplementationSpecific
+  tls:
+    - hosts:
+        - homeassistant.dekrey.net
+      secretName: homeassistant-dekrey-net-tls
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt
+  namespace: homeassistant-proxy
+spec:
+  acme:
+    email: matt.dekrey@gmail.com
+    preferredChain: ""
+    privateKeySecretRef:
+      name: letsencrypt
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+# ---
+# apiVersion: cert-manager.io/v1
+# kind: Certificate
+# metadata:
+#   name: homeassistant-cert
+#   namespace: homeassistant-proxy
+# spec:
+#   commonName: homeassistant.dekrey.net
+#   dnsNames:
+#   - homeassistant.dekrey.net
+#   issuerRef:
+#     name: letsencrypt
+#   secretName: homeassistant-dekrey-net-tls
