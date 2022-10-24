@@ -139,5 +139,5 @@ Because I never really finish a project, here's a couple tweaks I still want to 
 
 - [ ] Rather than using command line arguments within the start.sh, I'd like to
   use a config object and map the file in.
-- [ ] I feel there's a better way to keep the container running than that sleep
+- [X] I feel there's a better way to keep the container running than that sleep
   instruction. Find it.
