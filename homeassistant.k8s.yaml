@@ -81,8 +81,6 @@ metadata:
   name: homeassistant-http-ingress
   namespace: homeassistant-proxy
   annotations:
-    cert-manager.io/issuer: letsencrypt
-    acme.cert-manager.io/http01-edit-in-place: "true"
     # Do I need both of these annotations? I feel like one is enough...
     nginx.org/websocket-services: homeassistant-http-service
     nginx.ingress.kubernetes.io/websocket-services: homeassistant-http-service
@@ -102,34 +100,3 @@ spec:
   tls:
     - hosts:
         - homeassistant.dekrey.net
-      secretName: homeassistant-dekrey-net-tls
----
-apiVersion: cert-manager.io/v1
-kind: Issuer
-metadata:
-  name: letsencrypt
-  namespace: homeassistant-proxy
-spec:
-  acme:
-    email: matt.dekrey@gmail.com
-    preferredChain: ""
-    privateKeySecretRef:
-      name: letsencrypt
-    server: https://acme-v02.api.letsencrypt.org/directory
-    solvers:
-    - http01:
-        ingress:
-          class: nginx
-# ---
-# apiVersion: cert-manager.io/v1
-# kind: Certificate
-# metadata:
-#   name: homeassistant-cert
-#   namespace: homeassistant-proxy
-# spec:
-#   commonName: homeassistant.dekrey.net
-#   dnsNames:
-#   - homeassistant.dekrey.net
-#   issuerRef:
-#     name: letsencrypt
-#   secretName: homeassistant-dekrey-net-tls
